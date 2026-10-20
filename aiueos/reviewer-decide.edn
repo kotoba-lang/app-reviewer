@@ -1,0 +1,17 @@
+;; app-reviewer — itonami（dapp）の aiueos アプリ記述子（notes.edn 形）。
+;; 判定コアは aiueos/reviewer_decide.cljk（レビューの重大度・自動ゲート・決定）。
+;; 正本は design/review-process.md。pure（:effects #{}）。
+{:aiueos/component :app/reviewer-decide
+ :aiueos/kind :app
+ :aiueos/trust :untrusted
+ :aiueos/source "reviewer_decide.cljk"
+ :aiueos/wasm "reviewer_decide.wasm"
+ :aiueos/entry "main"
+ :aiueos/args []
+ :aiueos/imports #{}
+ :aiueos/exports #{:app/main
+                   :app/severity-ok
+                   :app/auto-fail
+                   :app/decision-code}
+ :aiueos/effects #{}
+ :aiueos/limits {:memory-pages 16 :fuel 5000000}}

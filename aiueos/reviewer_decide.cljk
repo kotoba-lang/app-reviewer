@@ -1,0 +1,70 @@
+(ns reviewer.decide
+  "app-reviewer 判定コア — itonami dapp bundle（pure, :effects #{}）。
+
+  アプリ公開レビューの判定（正本: design/review-process.md）:
+
+  - **finding の重大度は 4 段**: critical / high / medium / low。
+  - **自動チェック**: critical または high の失敗があれば status は
+    auto_failed（ブロッキング）。
+  - **決定ポリシー**（優先順: 上から）:
+    - emergency revoke: 公開後の critical 事故
+    - reject: 重大なポリシー・セキュリティ違反
+    - request changes: 修正可能な finding が残る
+    - approve: 未解決の critical / high が無い
+
+  severity-ok: 1 = 0..3（critical/high/medium/low）の内
+  auto-fail: 1 = auto_failed（critical か high の失敗）
+  decision-code の戻り: 0 approve / 1 request-changes / 2 reject
+    / 3 emergency-revoke
+
+  実行 host はスカラーのみ = KIR v3 / i64/direct ABI（kernel/selfhost 両対応）。
+
+  テストはゼロ引数 test-*、戻り 1/0:
+  <amu> test aiueos/reviewer_decide.cljk"
+  (:export [main severity-ok auto-fail decision-code
+            test-severity test-auto test-approve test-reject test-emergency
+            test-fail-closed]))
+
+(defn main [] :i64
+  0)
+
+(defn severity-ok [code :i64] :i64
+  (if (and (>= code 0) (<= code 3)) 1 0))
+
+(defn auto-fail [has-critical :i64 has-high :i64] :i64
+  (if (or (= has-critical 1) (= has-high 1)) 1 0))
+
+(defn decision-code [unresolved-critical-high :i64 fixable-remaining :i64 severe-violation :i64 post-release-incident :i64] :i64
+  (if (= post-release-incident 1)
+    3
+    (if (= severe-violation 1)
+      2
+      (if (or (= unresolved-critical-high 1) (= fixable-remaining 1))
+        1
+        0))))
+
+;; --- tests（戻り 1 = pass） ------------------------------------------------
+
+(defn test-severity [] :i64
+  ;; critical / high / medium / low の 4 段
+  (if (= (+ (severity-ok 0) (severity-ok 3) (severity-ok 4) (severity-ok -1)) 2) 1 0))
+
+(defn test-auto [] :i64
+  ;; critical か high で auto_failed
+  (if (= (+ (auto-fail 1 0) (auto-fail 0 1) (auto-fail 1 1) (auto-fail 0 0)) 3) 1 0))
+
+(defn test-approve [] :i64
+  ;; 未解決の critical/high 無し・修正残り無し・違反無し
+  (if (= (decision-code 0 0 0 0) 0) 1 0))
+
+(defn test-reject [] :i64
+  ;; 重大な違反は reject（emergency より下）
+  (if (= (+ (decision-code 1 1 1 0) (decision-code 0 0 1 0)) 4) 1 0))
+
+(defn test-emergency [] :i64
+  ;; 公開後の critical 事故は最優先で emergency-revoke
+  (if (= (decision-code 1 1 1 1) 3) 1 0))
+
+(defn test-fail-closed [] :i64
+  ;; 未解決の critical/high は approve させない（request changes へ）
+  (if (= (decision-code 1 0 0 0) 1) 1 0))

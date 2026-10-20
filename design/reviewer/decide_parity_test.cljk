@@ -1,0 +1,25 @@
+(ns reviewer.decide-parity-test
+  "aiueos/reviewer_decide.cljk（判定コア）と正本（design/review-process.md）の
+  parity。重大度・自動ゲート・決定ポリシーが変われば落ちる drift 検査。"
+  (:require [clojure.test :refer [deftest is testing]]
+            [clojure.string :as str]
+            ["fs" :as fs]))
+
+(def process
+  (fs/readFileSync (str/join "/" ["design" "review-process.md"]) "utf8"))
+
+(deftest review-rules-match-guest
+  (testing "guest test-severity: 重大度 4 段"
+    (is (str/includes? process "critical"))
+    (is (str/includes? process "high"))
+    (is (str/includes? process "medium"))
+    (is (str/includes? process "low")))
+  (testing "guest test-auto: critical / high 失敗で auto_failed"
+    (is (str/includes? process "auto_failed"))
+    (is (str/includes? process "critical"))
+    (is (str/includes? process "high")))
+  (testing "guest test-approve / test-reject / test-emergency: 決定ポリシー"
+    (is (str/includes? process "Approve: no unresolved critical/high"))
+    (is (str/includes? process "Request changes: fixable findings remain"))
+    (is (str/includes? process "Reject: severe policy or security violation"))
+    (is (str/includes? process "Emergency revoke: post-release critical incident"))))
